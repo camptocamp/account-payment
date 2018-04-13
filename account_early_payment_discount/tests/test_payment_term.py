@@ -1,14 +1,18 @@
-# -*- coding: utf-8 -*-
-# © 2016 Cyril Gaudin (Camptocamp)
-# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
+# Copyright 2016 Cyril Gaudin (Camptocamp)
+# License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl.html).
+
 from psycopg2 import IntegrityError
 
-from openerp.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase
+from odoo.tools.misc import mute_logger
 
 
 class TestPaymentTerm(TransactionCase):
 
+    @mute_logger('odoo.sql_db')
     def test_constraint__failed(self):
+        # Logs are muted to prevent the expected integrity error from being
+        # reported in the logs, which would cause a failed test status.
         with self.assertRaises(IntegrityError):
             self.env['account.payment.term'].create({
                 'name': 'Unittest payment term',
@@ -35,6 +39,6 @@ class TestPaymentTerm(TransactionCase):
         payment_term.early_payment_discount = False
         payment_term._onchange_early_payment_discount()
 
-        self.assertEqual(False, payment_term.epd_nb_days)
-        self.assertEqual(False, payment_term.epd_discount)
-        self.assertEqual(False, payment_term.epd_tolerance)
+        self.assertFalse(payment_term.epd_nb_days)
+        self.assertFalse(payment_term.epd_discount)
+        self.assertFalse(payment_term.epd_tolerance)
