@@ -1,0 +1,257 @@
+# Copyright 2019-2020 Camptocamp SA
+# License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.tools import float_compare, float_is_zero, float_round
+
+
+class AccountReconcileModel(models.Model):
+    _inherit = "account.reconcile.model"
+
+    apply_financial_discounts = fields.Boolean(string="Consider financial discounts")
+
+    financial_discount_label = fields.Char(
+        string="Write-off label", default="Financial discount"
+    )
+    financial_discount_revenue_account_id = fields.Many2one(
+        "account.account",
+        string="Revenue write-off account",
+        related="company_id.financial_discount_revenue_account_id",
+        readonly=False,
+    )
+    financial_discount_expense_account_id = fields.Many2one(
+        "account.account",
+        string="Expense write-off account",
+        related="company_id.financial_discount_expense_account_id",
+        readonly=False,
+    )
+    financial_discount_tolerance = fields.Float(
+        help="Tolerance for the application of financial discounts. Use 0.05 to"
+        "apply discount up to a difference of 5 cts between statement line"
+        "and move lines."
+    )
+
+    @api.constrains(
+        "rule_type",
+        "apply_financial_discounts",
+        "match_total_amount",
+        # "strict_match_total_amount",
+        "financial_discount_label",
+        "financial_discount_revenue_account_id",
+        "financial_discount_expense_account_id",
+        "match_same_currency",
+    )
+    def _check_apply_financial_discounts(self):
+        """Ensure rec model is set up properly to handle financial discounts"""
+        for rec in self:
+            if rec.rule_type != "invoice_matching" or not rec.apply_financial_discounts:
+                continue
+            errors = []
+            if not rec.match_total_amount or rec.match_total_amount_param != 100.0:
+                errors.append(_("Amount Matching must be set to 100%"))
+            # if not rec.strict_match_total_amount:
+            #     errors.append(_("Strict amount matching must be set"))
+            # FIXME: Restrict application of financial discount if currencies
+            #  are different while odoo hasn't fixed their mess
+            #  cf https://github.com/odoo/odoo/pull/52529#pullrequestreview-427812393
+            #  N.B: multicurrency handling is still in the process to avoid
+            #  having to rewrite everything once fixed upstream
+            if not rec.match_same_currency:
+                errors.append(_("Same currency matching must be set"))
+            if not rec.financial_discount_label:
+                errors.append(_("A financial discount label must be set"))
+            if not rec.financial_discount_revenue_account_id:
+                errors.append(
+                    _(
+                        "A financial discount revenue account must be set on "
+                        "the company"
+                    )
+                )
+            if not rec.financial_discount_expense_account_id:
+                errors.append(
+                    _(
+                        "A financial discount expense account must be set on "
+                        "the company"
+                    )
+                )
+            if errors:
+                msg = (
+                    _(
+                        "Reconciliation model %s is set to consider financial "
+                        "discount. However to function properly:\n"
+                    )
+                    % rec.name
+                )
+                raise ValidationError(msg + " - " + "\n - ".join(errors))
+
+    def _prepare_reconciliation(self, st_line, aml_ids=None, partner=None):
+        if aml_ids is None:
+            aml_ids = []
+        # TODO Check if there's any better way to pass this than context
+        self = self.with_context(_prepare_reconciliation_aml_ids=aml_ids)
+        return super()._prepare_reconciliation(
+            st_line, aml_ids=aml_ids, partner=partner
+        )
+
+    def _get_write_off_move_lines_dict(self, st_line, residual_balance):
+        res = super()._get_write_off_move_lines_dict(st_line, residual_balance)
+        if (
+            self.rule_type != "invoice_matching"
+            or res
+            or not self.apply_financial_discounts
+        ):
+            return res
+        move_lines = self.env["account.move.line"].browse(
+            self.env.context.get("_prepare_reconciliation_aml_ids")
+        )
+
+        # TODO Check condition
+        if (
+            move_lines
+            and any(
+                move_lines.with_context(discount_date=st_line.date).mapped(
+                    "move_id.has_discount_available"
+                )
+            )
+            and float_compare(
+                move_lines.amount_discount,
+                residual_balance,
+                precision_rounding=move_lines.currency_id.rounding,
+            )
+            == 0
+            and st_line.currency_id == move_lines.mapped("company_id.currency_id")
+        ):
+            fin_disc_write_off_vals = self._prepare_financial_discount_write_off_values(
+                st_line, move_lines, residual_balance
+            )
+            res += fin_disc_write_off_vals
+        return res
+
+    def _prepare_financial_discount_write_off_values(
+        self, st_line, move_lines, residual_balance
+    ):
+        """Prepare financial discount write-off"""
+        res = []
+        # Copied from odoo v13.0
+        # TODO Check code from v14.0 to mimic?
+        line_residual = (
+            st_line.currency_id and st_line.amount_currency or st_line.amount
+        )
+        line_currency = (
+            st_line.currency_id
+            or st_line.journal_id.currency_id
+            or st_line.company_id.currency_id
+        )
+        total_residual = (
+            move_lines
+            and sum(
+                aml.currency_id and aml.amount_residual_currency or aml.amount_residual
+                for aml in move_lines
+            )
+            or 0.0
+        )
+        balance = total_residual - line_residual
+
+        if float_is_zero(balance, precision_rounding=line_currency.rounding):
+            return res
+        for line in move_lines:
+
+            # discount = sum(aml.amount_discount_currency if aml.currency_id else aml.amount_discount)
+            discount = line.amount_discount
+
+            write_off_account = (
+                self.financial_discount_expense_account_id
+                if discount > 0
+                else self.financial_discount_revenue_account_id
+            )
+
+            fin_disc_write_off_vals = {
+                "name": self.financial_discount_label,
+                "account_id": write_off_account.id,
+                "debit": discount > 0 and discount or 0,
+                "credit": discount < 0 and -discount or 0,
+                "reconcile_model_id": self.id,
+                # TODO Check if this is right
+                "balance": abs(discount),
+            }
+            res.append(fin_disc_write_off_vals)
+            tax_discount = line.amount_discount_tax
+
+            if not tax_discount:
+                continue
+            tax_line = line.discount_tax_line_id
+            if not tax_line:
+                continue
+            tax_write_off_vals = {
+                "name": tax_line.name,
+                "account_id": tax_line.account_id.id,
+                "debit": tax_line.credit and line.amount_discount_tax or 0,
+                "credit": tax_line.debit and -line.amount_discount_tax or 0,
+                "reconcile_model_id": self.id,
+                # TODO Check if this is right
+                "balance": abs(line.amount_discount_tax),
+            }
+            # Deduce tax amount from fin. disc. write-off
+            if fin_disc_write_off_vals.get("credit"):
+                fin_disc_write_off_vals["credit"] = float_round(
+                    fin_disc_write_off_vals["credit"] + line.amount_discount_tax,
+                    precision_rounding=st_line.company_id.currency_id.rounding,
+                )
+            if fin_disc_write_off_vals.get("debit"):
+                fin_disc_write_off_vals["debit"] = float_round(
+                    fin_disc_write_off_vals["debit"] - line.amount_discount_tax,
+                    precision_rounding=st_line.company_id.currency_id.rounding,
+                )
+            # fin_disc_write_off_vals["balance"] -= line.amount_discount_tax
+            fin_disc_write_off_vals["balance"] = float_round(
+                fin_disc_write_off_vals["balance"] - line.amount_discount_tax,
+                precision_rounding=st_line.company_id.currency_id.rounding,
+            )
+            res.append(tax_write_off_vals)
+        return res
+
+    # flake8: noqa
+
+    # TODO: Check if still needed with strict_match_amount
+    def _get_select_communication_flag(self):
+        """Consider financial discount to allow reconciliation with the prop"""
+        comm_flag = super()._get_select_communication_flag()
+        # if self.match_total_amount and self.strict_match_total_amount:
+        comm_flag = (
+            r"""
+            COALESCE(
+            """
+            + comm_flag.replace("AS communication_flag", "")
+            + r"""
+            , FALSE)
+            AND
+            CASE
+                WHEN abs(st_line.amount) < abs(aml.balance) - abs(aml.amount_discount) THEN (abs(st_line.amount) - abs(aml.amount_discount)) / abs(aml.balance) * 100
+                WHEN abs(st_line.amount) > abs(aml.balance) + abs(aml.amount_discount) THEN (abs(aml.balance) + abs(aml.amount_discount)) / abs(st_line.amount) * 100
+                ELSE 100
+            END >= {match_total_amount_param}
+                """.format(
+                match_total_amount_param=self.match_total_amount_param
+            )
+        )
+        return comm_flag
+
+    def _get_invoice_matching_query(self, st_lines_with_partner, excluded_ids):
+        """Add fields used for financial discount"""
+        query, params = super()._get_invoice_matching_query(
+            st_lines_with_partner, excluded_ids
+        )
+        extra_select = r""",
+            account.internal_type AS account_internal_type,
+            aml.amount_discount AS discount_amount,
+            aml.amount_discount_currency AS discount_amount_currency,
+            aml.date_discount AS discount_date,
+            move.force_financial_discount AS force_financial_discount
+        """
+        from_split_query = query.split("FROM")
+        base_select = from_split_query[0]
+        query_without_select = from_split_query[1:]
+        discount_query = " FROM ".join(
+            [base_select + extra_select] + query_without_select
+        )
+        return discount_query, params
