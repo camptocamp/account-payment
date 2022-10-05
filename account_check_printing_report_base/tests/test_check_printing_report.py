@@ -148,10 +148,10 @@ class TestAccountCheckPrintingReportBase(TransactionCase):
         ICPSudo.set_param(
             "account_check_printing_report_base.check_layout_verification", "by_journal"
         )
-        self.assertFalse(self.payment.journal_id.account_check_printing_layout)
-        with self.assertRaises(RedirectWarning):
-            self.payment.do_print_checks()
-        content = self.action_check_report._render_qweb_pdf(self.payment.id)
+        self.assertFalse(self.payment.journal_id.check_layout_id)
+        with self.assertRaises(UserError):
+            self.payment.print_checks()
+        content = self.action_check_report.render_qweb_pdf(self.payment.id)
         self.assertEqual(content[1], "html")
 
     def test_02_check_printing_with_layout(self):
@@ -167,7 +167,7 @@ class TestAccountCheckPrintingReportBase(TransactionCase):
             e = e.name
         self.assertEqual(e, False)
 
-        content = self.action_check_report._render_qweb_pdf(self.payment.id)
+        content = self.action_check_report.render_qweb_pdf(self.payment.id)
         self.assertEqual(content[1], "html")
 
     def test_03_fotmat_form(self):
