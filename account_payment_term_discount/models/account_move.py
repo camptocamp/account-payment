@@ -30,7 +30,7 @@ class AccountMove(models.Model):
     )
 
     @api.onchange("amount_residual", "invoice_payment_term_id", "invoice_date")
-    @api.depends("state")
+    @api.depends("state", "invoice_payment_term_id")
     def _compute_discount_amt(self):
         for invoice in self:
             if invoice.invoice_payment_term_id:
