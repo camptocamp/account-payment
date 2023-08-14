@@ -219,7 +219,7 @@ msgstr "Enregistrer le paiement"
 #: model:ir.model.fields,field_description:account_payment_term_discount.field_account_bank_statement_line__shipping_lines_total
 #: model:ir.model.fields,field_description:account_payment_term_discount.field_account_move__shipping_lines_total
 #: model:ir.model.fields,field_description:account_payment_term_discount.field_account_payment__shipping_lines_total
-msgid "Shippling Lines Total"
+msgid "Shipping Lines Total"
 msgstr "Total des lignes de frais de port"
 
 #. module: account_payment_term_discount
@@ -240,6 +240,3 @@ msgid ""
 msgstr ""
 "Cette méthode ne doit être appelée que pour traiter le paiement d'une seule "
 "facture."
-
-#~ msgid "Exclude Shippling Amount"
-#~ msgstr "Exclure le montant des frais de port"
