@@ -43,14 +43,28 @@ class AccountMove(models.Model):
     def _compute_display_force_early_discount(self):
         """Compute discount financial discount fields"""
         for rec in self:
-            rec.display_force_early_discount = rec._get_display_force_early_discount()
+            display_force = False
+            if rec.state == "draft":
+                if (
+                    rec.invoice_payment_term_id.discount_days
+                    and rec.invoice_payment_term_id.discount_percentage
+                ):
+                    display_force = True
+            elif self.state == "posted":
+                first_payment_term_line = rec._get_first_payment_term_line()
+                if (
+                    first_payment_term_line.discount_date
+                    and first_payment_term_line.discount_amount_currency
+                ):
+                    display_force = True
+            rec.display_force_early_discount = display_force
 
     def _get_first_payment_term_line(self):
         self.ensure_one()
         payment_term_lines = self.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
         )
-        return fields.first(payment_term_lines.sorted("date_maturity"))
+        return payment_term_lines.sorted("date_maturity")[:1]
 
     def _is_eligible_for_early_payment_discount(self, currency, reference_date):
         force_move_ids = self.env.context.get("_force_early_discount")
