@@ -27,9 +27,7 @@ class TestAccountFinancialDiscountCommon(TransactionCase):
         return move_form.save()
 
     @classmethod
-    def init_invoice_line(
-        cls, invoice, quantity, unit_price, product=None, tax=None
-    ):
+    def init_invoice_line(cls, invoice, quantity, unit_price, product=None, tax=None):
         with Form(invoice) as move_form:
             with move_form.invoice_line_ids.new() as line_form:
                 if product:

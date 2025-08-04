@@ -18,7 +18,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_term,
             invoice_date="2019-04-01",
         )
-        cls.init_invoice_line(cls.invoice1, 1.0, 1000.0, tax=self.purchase_tax)
+        cls.init_invoice_line(cls.invoice1, 1.0, 1000.0, tax=cls.purchase_tax)
 
         cls.invoice2 = cls.init_invoice(
             cls.partner,
@@ -26,7 +26,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_term,
             invoice_date="2019-02-15",
         )
-        cls.init_invoice_line(cls.invoice2, 1.0, 1000.0, tax=self.purchase_tax)
+        cls.init_invoice_line(cls.invoice2, 1.0, 1000.0, tax=cls.purchase_tax)
 
         cls.invoice3 = cls.init_invoice(
             cls.partner,
@@ -34,7 +34,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_thirty_net,
             invoice_date="2019-04-01",
         )
-        cls.init_invoice_line(cls.invoice3, 1.0, 1000.0, tax=self.purchase_tax)
+        cls.init_invoice_line(cls.invoice3, 1.0, 1000.0, tax=cls.purchase_tax)
 
         cls.client_invoice1 = cls.init_invoice(
             cls.customer,
@@ -42,7 +42,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_term,
             invoice_date="2019-04-01",
         )
-        cls.init_invoice_line(cls.client_invoice1, 1.0, 1000.0, tax=self.sale_tax)
+        cls.init_invoice_line(cls.client_invoice1, 1.0, 1000.0, tax=cls.sale_tax)
 
         cls.client_invoice2 = cls.init_invoice(
             cls.customer,
@@ -50,7 +50,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_term,
             invoice_date="2019-02-15",
         )
-        cls.init_invoice_line(cls.client_invoice2, 1.0, 1000.0, tax=self.sale_tax)
+        cls.init_invoice_line(cls.client_invoice2, 1.0, 1000.0, tax=cls.sale_tax)
 
         cls.client_invoice3 = cls.init_invoice(
             cls.customer,
@@ -58,7 +58,7 @@ class TestAccountFinancialDiscountManualPayment(TestAccountFinancialDiscountComm
             payment_term=cls.payment_thirty_net,
             invoice_date="2019-04-01",
         )
-        cls.init_invoice_line(cls.client_invoice3, 1.0, 1000.0, tax=self.sale_tax)
+        cls.init_invoice_line(cls.client_invoice3, 1.0, 1000.0, tax=cls.sale_tax)
 
         cls.amount_without_discount = 1150.0
         cls.amount_discount = 23.0
