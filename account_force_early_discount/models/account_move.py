@@ -17,27 +17,12 @@ class AccountMove(models.Model):
         "discount date is passed",
     )
 
-    def _get_display_force_early_discount(self):
-        self.ensure_one()
-        if self.state == "draft":
-            if (
-                self.invoice_payment_term_id.discount_days
-                and self.invoice_payment_term_id.discount_percentage
-            ):
-                return True
-        elif self.state == "posted":
-            first_payment_term_line = self._get_first_payment_term_line()
-            if (
-                first_payment_term_line.discount_date
-                and first_payment_term_line.discount_amount_currency
-            ):
-                return True
-        return False
-
     @api.depends(
-        "invoice_payment_term_id",
+        "invoice_payment_term_id.discount_days",
+        "invoice_payment_term_id.discount_percentage",
         "invoice_payment_term_id.early_discount",
-        "force_early_discount",
+        "line_ids.discount_amount_currency",
+        "line_ids.discount_date",
         "state",
     )
     def _compute_display_force_early_discount(self):
@@ -46,11 +31,12 @@ class AccountMove(models.Model):
             display_force = False
             if rec.state == "draft":
                 if (
-                    rec.invoice_payment_term_id.discount_days
+                    rec.invoice_payment_term_id.early_discount
+                    and rec.invoice_payment_term_id.discount_days
                     and rec.invoice_payment_term_id.discount_percentage
                 ):
                     display_force = True
-            elif self.state == "posted":
+            elif rec.state == "posted":
                 first_payment_term_line = rec._get_first_payment_term_line()
                 if (
                     first_payment_term_line.discount_date
@@ -67,7 +53,7 @@ class AccountMove(models.Model):
         return payment_term_lines.sorted("date_maturity")[:1]
 
     def _is_eligible_for_early_payment_discount(self, currency, reference_date):
-        force_move_ids = self.env.context.get("_force_early_discount")
+        force_move_ids = self.env.context.get("_force_early_discount_move_ids")
         if self.force_early_discount or force_move_ids:
             payment_terms = self.line_ids.filtered(
                 lambda line: line.display_type == "payment_term"

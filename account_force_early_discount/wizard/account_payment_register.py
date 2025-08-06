@@ -64,7 +64,7 @@ class AccountPaymentRegister(models.TransientModel):
     def _apply_force_early_payment_discount_ctx(self, batch_result):
         if self.force_early_discount:
             batch_result["lines"] = batch_result["lines"].with_context(
-                _force_early_discount=batch_result["lines"].move_id.ids
+                _force_early_discount_move_ids=batch_result["lines"].move_id.ids
             )
         else:
             force_discount_lines = batch_result["lines"].filtered(
@@ -72,7 +72,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
             if force_discount_lines:
                 batch_result["lines"] = batch_result["lines"].with_context(
-                    _force_early_discount=force_discount_lines.move_id.ids
+                    _force_early_discount_move_ids=force_discount_lines.move_id.ids
                 )
         return batch_result
 
@@ -93,7 +93,7 @@ class AccountPaymentRegister(models.TransientModel):
             for batch_result in batch_results:
                 if self.force_early_discount:
                     batch_result["lines"] = batch_result["lines"].with_context(
-                        _force_early_discount=batch_result["lines"].move_id.ids
+                        _force_early_discount_move_ids=batch_result["lines"].move_id.ids
                     )
                     force_ids += batch_result["lines"].move_id.ids
                 else:
@@ -102,9 +102,9 @@ class AccountPaymentRegister(models.TransientModel):
                     )
                     if force_discount_lines:
                         batch_result["lines"] = batch_result["lines"].with_context(
-                            _force_early_discount=force_discount_lines.move_id.ids
+                            _force_early_discount_move_ids=force_discount_lines.move_id.ids
                         )
                         force_ids += force_discount_lines.move_id.ids
                 if force_ids:
-                    self = self.with_context(_force_early_discount=force_ids)
+                    self = self.with_context(_force_early_discount_move_ids=force_ids)
         return super()._get_total_amounts_to_pay(batch_results)

@@ -2,6 +2,8 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl)
 from odoo.tests import Form, TransactionCase
 
+from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
+
 
 class TestAccountFinancialDiscountCommon(TransactionCase):
     @classmethod
@@ -41,7 +43,7 @@ class TestAccountFinancialDiscountCommon(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-
+        cls.env = cls.env(context=dict(cls.env.context, **DISABLED_MAIL_CONTEXT))
         cls.usd_currency = cls.env.ref("base.USD")
         cls.eur_currency = cls.env.ref("base.EUR")
         cls.eur_currency.active = True
