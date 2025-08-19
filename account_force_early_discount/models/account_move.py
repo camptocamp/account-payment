@@ -54,15 +54,14 @@ class AccountMove(models.Model):
 
     def _is_eligible_for_early_payment_discount(self, currency, reference_date):
         force_move_ids = self.env.context.get("_force_early_discount_move_ids")
-        if self.force_early_discount or force_move_ids:
+        if self.force_early_discount or self.id in force_move_ids:
             payment_terms = self.line_ids.filtered(
                 lambda line: line.display_type == "payment_term"
             )
             return (
-                (self.force_early_discount or self.id in force_move_ids)
-                and self.currency_id == currency
+                self.currency_id == currency
                 and self.move_type
-                in ("out_invoice", "out_receipt", "in_invoice", "in_receipt")
+                in self._early_payment_discount_move_types()
                 and self.invoice_payment_term_id.early_discount
                 and not (
                     payment_terms.sudo().matched_debit_ids
